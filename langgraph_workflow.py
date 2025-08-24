@@ -102,23 +102,30 @@ def evaluate_node(state):
         return state.copy(update={"final_output": answer, "response": answer, "retry": False})
     else:
         return state.copy(update={"retry": False})
+    
+def eval_router_node(state):
+    # 그냥 상태 객체를 그대로 반환
+    return state
 
 # ==================================================
 # 랭그래프 워크플로우 정의
 # ==================================================
 graph = StateGraph(RAGState)
 graph.add_node("user_query", user_query_node)
-graph.add_node("dense_retrieve", dense_retrieve_node)
+graph.add_node("retrieve", dense_retrieve_node)
 graph.add_node("generate", generate_node)
 graph.add_node("evaluate", evaluate_node)
+graph.add_node("router", eval_router_node)
 
-graph.add_edge("user_query", "dense_retrieve")
-graph.add_edge("dense_retrieve", "generate")
+graph.add_edge("user_query", "retrieve")
+graph.add_edge("retrieve", "generate")
 graph.add_edge("generate", "evaluate")
 
+graph.add_edge("evaluate", "router")
 graph.add_conditional_edges(
-    "evaluate",
-    lambda state: "generate" if getattr(state, "retry", False) else END
+    "router",  # 현재 평가 노드에서
+    lambda state: "generate" if getattr(state, "retry", False) else "END",
+    {"generate": "generate", "END": END}
 )
 graph.set_entry_point("user_query")
 workflow = graph.compile()
